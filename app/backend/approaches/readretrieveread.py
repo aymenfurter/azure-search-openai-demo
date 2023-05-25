@@ -3,6 +3,7 @@ from approaches.approach import Approach
 from azure.search.documents import SearchClient
 from azure.search.documents.models import QueryType
 from langchain.llms.openai import AzureOpenAI
+from approaches.serp import SerpAPIWrapper
 from langchain.callbacks.base import CallbackManager
 from langchain.chains import LLMChain
 from langchain.agents import Tool, ZeroShotAgent, AgentExecutor
@@ -37,7 +38,7 @@ Question: {input}
 
 Thought: {agent_scratchpad}"""    
 
-    CognitiveSearchToolDescription = "useful for searching the Microsoft employee benefits information such as healthcare plans, retirement plans, etc."
+    CognitiveSearchToolDescription = "useful for searching user manuals and repair guides"
 
     def __init__(self, search_client: SearchClient, openai_deployment: str, sourcepage_field: str, content_field: str):
         self.search_client = search_client
@@ -76,10 +77,25 @@ Thought: {agent_scratchpad}"""
         # Use to capture thought process during iterations
         cb_handler = HtmlCallbackHandler()
         cb_manager = CallbackManager(handlers=[cb_handler])
+
+        params_shopping = {
+            "engine": "google_shopping",
+            "gl": "us",
+            "hl": "en",
+            "location": "Switzerland",
+            "google_domain": "google.ch"
+        }
+
+        shopping_search = SerpAPIWrapper(params=params_shopping)
+        
+        google_shopping = Tool(
+                name="Shopping Search",
+                func=shopping_search.run,
+                description="useful when searching for specific prodcuts, specs and prices")
+        
         
         acs_tool = Tool(name = "CognitiveSearch", func = lambda q: self.retrieve(q, overrides), description = self.CognitiveSearchToolDescription)
-        employee_tool = EmployeeInfoTool("Employee1")
-        tools = [acs_tool, employee_tool]
+        tools = [acs_tool, google_shopping]
 
         prompt = ZeroShotAgent.create_prompt(
             tools=tools,
